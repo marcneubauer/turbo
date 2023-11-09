@@ -1,3 +1,4 @@
+use miette::Diagnostic;
 use thiserror::Error;
 use turborepo_repository::package_graph;
 
@@ -8,7 +9,7 @@ use crate::{
     task_graph, task_hash,
 };
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Diagnostic)]
 pub enum Error {
     #[error(transparent)]
     Graph(#[from] graph_visualizer::Error),
