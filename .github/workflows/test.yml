@@ -572,7 +572,12 @@ jobs:
       needs.determine_jobs.outputs.cargo_on_main == 'true' ||
       needs.determine_jobs.outputs.cargo_only == 'true'
     name: Turborepo rust check
-    runs-on: ubuntu-latest-16-core-oss
+    runs-on:
+      - 'self-hosted'
+      - 'linux'
+      - 'x64'
+      - 'metal'
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -598,7 +603,12 @@ jobs:
   turborepo_rust_clippy:
     needs: [turborepo_rust_check]
     name: Turborepo rust clippy
-    runs-on: ubuntu-latest-16-core-oss
+    runs-on:
+      - 'self-hosted'
+      - 'linux'
+      - 'x64'
+      - 'metal'
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -633,7 +643,12 @@ jobs:
       needs.determine_jobs.outputs.cargo_on_main == 'true' ||
       needs.determine_jobs.outputs.cargo_only == 'true'
     name: Turbopack rust check
-    runs-on: ubuntu-latest-16-core-oss
+    runs-on:
+      - 'self-hosted'
+      - 'linux'
+      - 'x64'
+      - 'metal'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -656,7 +671,12 @@ jobs:
   turbopack_rust_clippy:
     needs: [turbopack_rust_check]
     name: Turbopack rust clippy
-    runs-on: ubuntu-latest-16-core-oss
+    runs-on:
+      - 'self-hosted'
+      - 'linux'
+      - 'x64'
+      - 'metal'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -684,7 +704,12 @@ jobs:
     needs: [determine_jobs]
     if: needs.determine_jobs.outputs.turbopack == 'true' || needs.determine_jobs.outputs.cargo_on_main == 'true'
     name: Check next-swc
-    runs-on: ubuntu-latest-8-core-oss
+    runs-on:
+      - 'self-hosted'
+      - 'linux'
+      - 'x64'
+      - 'metal'
+
     permissions:
       pull-requests: write
     steps:
@@ -760,7 +785,11 @@ jobs:
       matrix:
         os:
           - name: ubuntu
-            runner: ubuntu-latest-16-core-oss
+            runner: 
+              - 'self-hosted'
+              - 'linux'
+              - 'x64'
+              - 'metal'
             nextest: linux
           - name: macos
             runner: macos-latest
@@ -800,7 +829,12 @@ jobs:
 
   turbopack_rust_test1:
     needs: [turbopack_rust_check]
-    runs-on: ubuntu-latest-16-core-oss
+    runs-on:
+      - 'self-hosted'
+      - 'linux'
+      - 'x64'
+      - 'metal'
+      
     name: Turbopack Rust testing on ubuntu
     steps:
       - name: Checkout
