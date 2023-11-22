@@ -577,7 +577,6 @@ jobs:
       - 'linux'
       - 'x64'
       - 'metal'
-      
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -608,7 +607,6 @@ jobs:
       - 'linux'
       - 'x64'
       - 'metal'
-      
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -648,7 +646,6 @@ jobs:
       - 'linux'
       - 'x64'
       - 'metal'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -676,7 +673,6 @@ jobs:
       - 'linux'
       - 'x64'
       - 'metal'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -709,10 +705,12 @@ jobs:
       - 'linux'
       - 'x64'
       - 'metal'
-
     permissions:
       pull-requests: write
     steps:
+      - name: tune linux network
+        run: sudo ethtool -K eth0 tx off rx off
+
       - name: Checkout Next.js
         uses: actions/checkout@v3
         with:
@@ -831,7 +829,6 @@ jobs:
       - 'linux'
       - 'x64'
       - 'metal'
-      
     name: Turbopack Rust testing on ubuntu
     steps:
       - name: Checkout
@@ -968,11 +965,7 @@ jobs:
     name: Turbopack Rust testing benchmarks on linux
     uses: ./.github/workflows/test-turbopack-rust-bench-test.yml
     with:
-      runs-on:
-        - 'self-hosted'
-        - 'linux'
-        - 'x64'
-        - 'metal'
+      runner: ubuntu-latest-metal
       os: linux
       all: ${{ needs.determine_jobs.outputs.turbopack_bench == 'true' }}
 
