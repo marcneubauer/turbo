@@ -124,7 +124,7 @@ use crate::{
     resolve::try_to_severity,
     tree_shake::{part_of_module, split},
     typescript::resolve::tsconfig,
-    EcmascriptInputTransforms, EcmascriptModuleAsset, SpecifiedModuleType,
+    EcmascriptInputTransforms, EcmascriptModuleAsset, SpecifiedModuleType, TreeShakingMode,
 };
 
 #[turbo_tasks::value(shared)]
@@ -265,7 +265,7 @@ struct AnalysisState<'a> {
     // There can be many references to import.meta, but only the first should hoist
     // the object allocation.
     first_import_meta: bool,
-    import_parts: bool,
+    tree_shaking_mode: Option<TreeShakingMode>,
     import_externals: bool,
 }
 
@@ -439,14 +439,13 @@ pub(crate) async fn analyze_ecmascript_module(
             Request::parse(Value::new(r.module_path.to_string().into())),
             r.issue_source,
             Value::new(r.annotations.clone()),
-            if options.import_parts {
-                match &r.imported_symbol {
+            match options.tree_shaking_mode {
+                Some(TreeShakingMode::ModuleFragments) => match &r.imported_symbol {
                     ImportedSymbol::ModuleEvaluation => Some(ModulePart::module_evaluation()),
                     ImportedSymbol::Symbol(name) => Some(ModulePart::export(name.to_string())),
                     ImportedSymbol::Namespace => None,
-                }
-            } else {
-                None
+                },
+                None => None,
             },
             import_externals,
         );
@@ -676,7 +675,7 @@ pub(crate) async fn analyze_ecmascript_module(
         var_graph: &var_graph,
         fun_args_values: Mutex::new(HashMap::<u32, Vec<JsValue>>::new()),
         first_import_meta: true,
-        import_parts: options.import_parts,
+        tree_shaking_mode: options.tree_shaking_mode,
         import_externals: options.import_externals,
     };
 
@@ -1779,14 +1778,12 @@ async fn handle_free_var_reference(
                     span.hi.to_usize(),
                 )),
                 Default::default(),
-                state
-                    .import_parts
-                    .then(|| {
-                        export
-                            .as_ref()
-                            .map(|export| ModulePart::export(export.to_string()))
-                    })
-                    .flatten(),
+                match state.tree_shaking_mode {
+                    Some(TreeShakingMode::ModuleFragments) => export
+                        .as_ref()
+                        .map(|export| ModulePart::export(export.to_string())),
+                    None => None,
+                },
                 state.import_externals,
             )
             .resolve()
