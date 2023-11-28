@@ -341,7 +341,6 @@ impl ModuleResolveResultOption {
 #[derive(Clone, Debug)]
 pub enum ResolveResultItem {
     Source(Vc<Box<dyn Source>>),
-    OriginalReferenceExternal,
     OriginalReferenceTypeExternal(String),
     Ignore,
     Empty,
@@ -513,9 +512,6 @@ impl ResolveResult {
                     async move {
                         Ok(match item {
                             ResolveResultItem::Source(source) => asset_fn(source).await?,
-                            ResolveResultItem::OriginalReferenceExternal => {
-                                ModuleResolveResultItem::OriginalReferenceExternal
-                            }
                             ResolveResultItem::OriginalReferenceTypeExternal(s) => {
                                 ModuleResolveResultItem::OriginalReferenceTypeExternal(s)
                             }
@@ -1998,6 +1994,10 @@ pub enum ModulePart {
     Export(Vc<String>),
     /// A pointer to a specific part.
     Internal(u32),
+    /// The local declarations of a module.
+    Locals,
+    /// The reexports of a module and a reexport of the Locals part.
+    ReexportsFacade,
 }
 
 #[turbo_tasks::value_impl]
@@ -2013,5 +2013,13 @@ impl ModulePart {
     #[turbo_tasks::function]
     pub fn internal(id: u32) -> Vc<Self> {
         ModulePart::Internal(id).cell()
+    }
+    #[turbo_tasks::function]
+    pub fn locals() -> Vc<Self> {
+        ModulePart::Locals.cell()
+    }
+    #[turbo_tasks::function]
+    pub fn reexports_facade() -> Vc<Self> {
+        ModulePart::ReexportsFacade.cell()
     }
 }
