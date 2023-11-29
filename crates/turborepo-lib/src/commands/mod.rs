@@ -125,7 +125,7 @@ impl CommandBase {
     }
 
     pub fn daemon_file_root(&self) -> AbsoluteSystemPathBuf {
-        AbsoluteSystemPathBuf::new(std::env::temp_dir().to_str().expect("UTF-8 path"))
+        AbsoluteSystemPathBuf::new(std::env::temp_dir().to_str().expect("UTF-8 path"), None)
             .expect("temp dir is valid")
             .join_component("turbod")
             .join_component(self.repo_hash().as_str())

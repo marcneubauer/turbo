@@ -219,7 +219,7 @@ pub fn previous_content(
     // Note that we assume any relative file path is relative to the git root
     // FIXME: this is probably wrong. We should know the path to the lockfile
     // exactly
-    let absolute_file_path = AbsoluteSystemPathBuf::from_unknown(&git_root, file_path);
+    let absolute_file_path = AbsoluteSystemPathBuf::from_unknown(&git_root, file_path, None);
 
     scm.previous_content(from_commit, &absolute_file_path)
 }

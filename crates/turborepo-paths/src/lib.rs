@@ -36,24 +36,27 @@ mod anchored_system_path_buf;
 mod relative_unix_path;
 mod relative_unix_path_buf;
 
-use std::io;
+use std::{io, sync::Arc};
 
 pub use absolute_system_path::{AbsoluteSystemPath, PathRelation};
 pub use absolute_system_path_buf::AbsoluteSystemPathBuf;
 pub use anchored_system_path::AnchoredSystemPath;
 pub use anchored_system_path_buf::AnchoredSystemPathBuf;
 use camino::{Utf8Path, Utf8PathBuf};
+use miette::Diagnostic;
 pub use relative_unix_path::RelativeUnixPath;
 pub use relative_unix_path_buf::{RelativeUnixPathBuf, RelativeUnixPathBufTestExt};
+use thiserror::Error;
+use turborepo_errors::Provenance;
 
 // Lets windows know that we're going to be reading this file sequentially
 #[cfg(windows)]
 pub const FILE_FLAG_SEQUENTIAL_SCAN: u32 = 0x08000000;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error, Diagnostic)]
 pub enum PathError {
     #[error("Path is non-UTF-8: {0}")]
-    InvalidUnicode(String),
+    InvalidUnicode(String, #[source_code] String),
     #[error("Failed to convert path")]
     FromPathBufError(#[from] camino::FromPathBufError),
     #[error("Failed to convert path")]
@@ -68,10 +71,6 @@ pub enum PathError {
     NotRelative(String),
     #[error("Path {0} is not parent of {1}")]
     NotParent(String, String),
-    #[error("Path {0} is not a unix path")]
-    NotUnix(String),
-    #[error("Path {0} is not a system path")]
-    NotSystem(String),
     #[error("IO Error {0}")]
     IO(#[from] io::Error),
     #[error("{0} is not a prefix for {1}")]
@@ -80,7 +79,7 @@ pub enum PathError {
 
 impl From<std::string::FromUtf8Error> for PathError {
     fn from(value: std::string::FromUtf8Error) -> Self {
-        PathError::InvalidUnicode(value.utf8_error().to_string())
+        PathError::InvalidUnicode(value.utf8_error().to_string(), String::new())
     }
 }
 
@@ -203,11 +202,11 @@ pub enum UnknownPathType {
 /// Categorizes a path as either an `AbsoluteSystemPathBuf` or
 /// an `AnchoredSystemPathBuf` depending on whether it
 /// is absolute or relative.
-pub fn categorize(path: &Utf8Path) -> UnknownPathType {
+pub fn categorize(path: &Utf8Path, provenance: Option<Arc<Provenance>>) -> UnknownPathType {
     let path = Utf8PathBuf::try_from(path_clean::clean(path))
         .expect("path cleaning should preserve UTF-8");
     if path.is_absolute() {
-        UnknownPathType::Absolute(AbsoluteSystemPathBuf(path))
+        UnknownPathType::Absolute(AbsoluteSystemPathBuf(provenance, path))
     } else {
         UnknownPathType::Anchored(AnchoredSystemPathBuf(path))
     }

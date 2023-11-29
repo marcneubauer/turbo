@@ -51,9 +51,9 @@ impl TryFrom<&Path> for AnchoredSystemPathBuf {
     type Error = PathError;
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let path = path
-            .to_str()
-            .ok_or_else(|| PathError::InvalidUnicode(path.to_string_lossy().to_string()))?;
+        let path = path.to_str().ok_or_else(|| {
+            PathError::InvalidUnicode(path.to_string_lossy().to_string(), String::new())
+        })?;
 
         Self::try_from(path)
     }
@@ -148,9 +148,9 @@ impl AnchoredSystemPathBuf {
     // Takes in a path, validates that it is anchored and constructs an
     // `AnchoredSystemPathBuf` with no trailing slashes.
     pub fn from_system_path(path: &Path) -> Result<Self, PathError> {
-        let path = path
-            .to_str()
-            .ok_or_else(|| PathError::InvalidUnicode(path.to_string_lossy().to_string()))?;
+        let path = path.to_str().ok_or_else(|| {
+            PathError::InvalidUnicode(path.to_string_lossy().to_string(), String::new())
+        })?;
 
         #[allow(unused_variables)]
         let PathValidation {

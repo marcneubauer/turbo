@@ -119,7 +119,7 @@ pub fn canonicalize_linkname(
     // In order to DAG sort them, however, we do need to canonicalize them.
     // We canonicalize them as if we're restoring them verbatim.
     //
-    match turbopath::categorize(linkname) {
+    match turbopath::categorize(linkname, None) {
         // 1. Check to see if the link target is absolute _on the current platform_.
         // If it is an absolute path it's canonical by rule.
         UnknownPathType::Absolute(abs) => Ok(abs),

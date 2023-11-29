@@ -144,7 +144,7 @@ pub async fn daemon_server(
             .expect("user has a home dir");
 
         let folder =
-            AbsoluteSystemPathBuf::new(directories.data_dir().to_str().expect("UTF-8 path"))
+            AbsoluteSystemPathBuf::new(directories.data_dir().to_str().expect("UTF-8 path"), None)
                 .expect("absolute");
 
         let log_folder = folder.join_component("logs");

@@ -2,10 +2,12 @@ use std::{
     fs::OpenOptions,
     io::{self, Write},
     process::{Command, Stdio},
+    sync::Arc,
 };
 
 use thiserror::Error;
 use turbopath::{AbsoluteSystemPath, AbsoluteSystemPathBuf};
+use turborepo_errors::Provenance;
 use turborepo_ui::{cprintln, cwrite, cwriteln, BOLD, BOLD_YELLOW_REVERSE, UI, YELLOW};
 use which::which;
 
@@ -141,7 +143,8 @@ fn filename_and_extension(
     cwd: &AbsoluteSystemPath,
     raw_filename: &str,
 ) -> Result<(AbsoluteSystemPathBuf, String), Error> {
-    let graph_file = AbsoluteSystemPathBuf::from_unknown(cwd, raw_filename);
+    let graph_file =
+        AbsoluteSystemPathBuf::from_unknown(cwd, raw_filename, Provenance::from_flag("graph"));
     if let Some(extension) = graph_file.extension() {
         let extension = extension.to_string();
         Ok((graph_file, extension))

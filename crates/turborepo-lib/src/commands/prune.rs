@@ -7,6 +7,7 @@ use tracing::trace;
 use turbopath::{
     AbsoluteSystemPathBuf, AnchoredSystemPath, AnchoredSystemPathBuf, RelativeUnixPath,
 };
+use turborepo_errors::Provenance;
 use turborepo_repository::{
     package_graph::{self, PackageGraph, WorkspaceName, WorkspaceNode},
     package_json::PackageJson,
@@ -258,7 +259,11 @@ impl<'a> Prune<'a> {
 
         let package_graph = PackageGraph::builder(&base.repo_root, root_package_json).build()?;
 
-        let out_directory = AbsoluteSystemPathBuf::from_unknown(&base.repo_root, output_dir);
+        let out_directory = AbsoluteSystemPathBuf::from_unknown(
+            &base.repo_root,
+            output_dir,
+            Provenance::from_flag("out-dir"),
+        );
 
         let full_directory = match docker {
             true => out_directory.join_component("full"),

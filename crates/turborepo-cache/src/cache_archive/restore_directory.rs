@@ -149,7 +149,7 @@ fn check_path(
         combined_path, link_target
     );
     if link_target.is_absolute() {
-        let absolute_link_target = AbsoluteSystemPathBuf::new(link_target.clone())?;
+        let absolute_link_target = AbsoluteSystemPathBuf::new(link_target.clone(), None)?;
         if path_clean::clean(&absolute_link_target).starts_with(original_anchor) {
             return Ok(absolute_link_target);
         }

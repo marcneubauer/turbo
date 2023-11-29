@@ -9,11 +9,13 @@ use std::{
     fs::{File, Metadata, OpenOptions, Permissions},
     io::{self, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use camino::{Utf8Component, Utf8Components, Utf8Path, Utf8PathBuf};
 use fs_err as fs;
 use path_clean::PathClean;
+use turborepo_errors::Provenance;
 use wax::CandidatePath;
 
 use crate::{
@@ -31,13 +33,13 @@ pub enum PathRelation {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct AbsoluteSystemPath(Utf8Path);
+pub struct AbsoluteSystemPath(Option<Arc<Provenance>>, Utf8Path);
 
 impl ToOwned for AbsoluteSystemPath {
     type Owned = AbsoluteSystemPathBuf;
 
     fn to_owned(&self) -> Self::Owned {
-        AbsoluteSystemPathBuf(self.0.to_owned())
+        AbsoluteSystemPathBuf(self.0.clone(), self.1.to_owned())
     }
 }
 
@@ -49,13 +51,13 @@ impl AsRef<AbsoluteSystemPath> for AbsoluteSystemPath {
 
 impl fmt::Display for AbsoluteSystemPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.as_str())
+        write!(f, "{}", self.1.as_str())
     }
 }
 
 impl AsRef<Path> for AbsoluteSystemPath {
     fn as_ref(&self) -> &Path {
-        self.0.as_std_path()
+        self.1.as_std_path()
     }
 }
 
@@ -110,39 +112,43 @@ impl AbsoluteSystemPath {
         unsafe { &*(path as *const Utf8Path as *const Self) }
     }
 
+    pub fn provenance(&self) -> Option<Arc<Provenance>> {
+        self.0.clone()
+    }
+
     pub fn as_path(&self) -> &Utf8Path {
-        &self.0
+        &self.1
     }
 
     pub fn as_std_path(&self) -> &Path {
-        self.0.as_std_path()
+        self.1.as_std_path()
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_str().as_bytes()
+        self.1.as_str().as_bytes()
     }
 
     pub fn exists(&self) -> bool {
-        self.0.exists()
+        self.1.exists()
     }
 
     pub fn ancestors(&self) -> impl Iterator<Item = &AbsoluteSystemPath> {
-        self.0.ancestors().map(Self::new_unchecked)
+        self.1.ancestors().map(Self::new_unchecked)
     }
 
     pub fn create(&self) -> Result<File, io::Error> {
-        File::create(&self.0)
+        File::create(&self.1)
     }
 
     pub fn create_dir_all(&self) -> Result<(), io::Error> {
-        fs::create_dir_all(&self.0)
+        fs::create_dir_all(&self.1)
     }
 
     pub fn create_dir_all_with_permissions(
         &self,
         permissions: Permissions,
     ) -> Result<(), io::Error> {
-        let (create, change_perms) = match fs::metadata(&self.0) {
+        let (create, change_perms) = match fs::metadata(&self.1) {
             Ok(info) if info.is_dir() && info.permissions() == permissions => {
                 // Directory already exists with correct permissions
                 (false, false)
@@ -160,7 +166,7 @@ impl AbsoluteSystemPath {
             self.create_dir_all()?;
         }
         if change_perms {
-            fs::set_permissions(&self.0, permissions)?;
+            fs::set_permissions(&self.1, permissions)?;
         }
 
         Ok(())
@@ -169,28 +175,29 @@ impl AbsoluteSystemPath {
     /// create_with_contents will create or truncate a file, then write the
     /// given contents to it
     pub fn create_with_contents<B: AsRef<[u8]>>(&self, contents: B) -> Result<(), io::Error> {
-        let mut f = fs::File::create(&self.0)?;
+        let mut f = fs::File::create(&self.1)?;
         f.write_all(contents.as_ref())?;
         Ok(())
     }
 
     pub fn remove_dir_all(&self) -> Result<(), io::Error> {
-        fs::remove_dir_all(&self.0)
+        fs::remove_dir_all(&self.1)
     }
 
     pub fn rename(&self, other: &Self) -> Result<(), io::Error> {
-        fs::rename(&self.0, &other.0)
+        fs::rename(&self.1, &other.1)
     }
 
     pub fn extension(&self) -> Option<&str> {
-        self.0.extension()
+        self.1.extension()
     }
 
     // intended for joining literals or obviously single-token strings
     pub fn join_component(&self, segment: &str) -> AbsoluteSystemPathBuf {
         debug_assert!(!segment.contains(std::path::MAIN_SEPARATOR));
         AbsoluteSystemPathBuf(
-            self.0
+            self.0.clone(),
+            self.1
                 .join(segment)
                 .as_std_path()
                 .clean()
@@ -205,7 +212,8 @@ impl AbsoluteSystemPath {
             .iter()
             .any(|segment| segment.contains(std::path::MAIN_SEPARATOR)));
         AbsoluteSystemPathBuf(
-            self.0
+            self.0.clone(),
+            self.1
                 .join(segments.join(std::path::MAIN_SEPARATOR_STR))
                 .as_std_path()
                 .clean()
@@ -215,7 +223,7 @@ impl AbsoluteSystemPath {
     }
 
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        self.1.as_str()
     }
 
     pub fn join_unix_path(
@@ -224,7 +232,8 @@ impl AbsoluteSystemPath {
     ) -> Result<AbsoluteSystemPathBuf, PathError> {
         let tail = unix_path.as_ref().to_system_path_buf();
         Ok(AbsoluteSystemPathBuf(
-            self.0.join(tail).as_std_path().clean().try_into()?,
+            self.0.clone(),
+            self.1.join(tail).as_std_path().clean().try_into()?,
         ))
     }
 
@@ -233,7 +242,7 @@ impl AbsoluteSystemPath {
     }
 
     pub fn ensure_dir(&self) -> Result<(), io::Error> {
-        if let Some(parent) = self.0.parent() {
+        if let Some(parent) = self.1.parent() {
             fs::create_dir_all(parent)
         } else {
             Ok(())
@@ -242,69 +251,72 @@ impl AbsoluteSystemPath {
 
     pub fn symlink_to_file<P: AsRef<str>>(&self, to: P) -> Result<(), PathError> {
         let target = to.as_ref();
-        symlink_file(target, &self.0)?;
+        symlink_file(target, &self.1)?;
         Ok(())
     }
 
     pub fn symlink_to_dir<P: AsRef<str>>(&self, to: P) -> Result<(), PathError> {
         let target = to.as_ref();
-        symlink_dir(target, &self.0)?;
+        symlink_dir(target, &self.1)?;
 
         Ok(())
     }
 
     pub fn resolve(&self, path: &AnchoredSystemPath) -> AbsoluteSystemPathBuf {
-        let path = self.0.join(path);
-        AbsoluteSystemPathBuf(path)
+        let path = self.1.join(path);
+        AbsoluteSystemPathBuf(self.0.clone(), path)
     }
 
     pub fn clean(&self) -> Result<AbsoluteSystemPathBuf, PathError> {
-        let cleaned_path = self
-            .0
-            .as_std_path()
-            .clean()
-            .try_into()
-            .map_err(|_| PathError::InvalidUnicode(self.0.as_str().to_owned()))?;
+        let cleaned_path = self.1.as_std_path().clean().try_into().map_err(|_| {
+            PathError::InvalidUnicode(
+                self.1.as_str().to_owned(),
+                self.0.as_ref().map(|p| p.to_string()).unwrap_or_default(),
+            )
+        })?;
 
-        Ok(AbsoluteSystemPathBuf(cleaned_path))
+        Ok(AbsoluteSystemPathBuf(self.0.clone(), cleaned_path))
     }
 
     pub fn to_realpath(&self) -> Result<AbsoluteSystemPathBuf, PathError> {
-        let realpath = dunce::canonicalize(&self.0)?;
-        Ok(AbsoluteSystemPathBuf(Utf8PathBuf::try_from(realpath)?))
+        let realpath = dunce::canonicalize(&self.1)?;
+        Ok(AbsoluteSystemPathBuf(
+            self.0.clone(),
+            Utf8PathBuf::try_from(realpath)?,
+        ))
     }
 
     // note that this is *not* lstat. If this is a symlink, it
     // will return metadata for the target.
     pub fn stat(&self) -> Result<Metadata, PathError> {
-        Ok(fs::metadata(&self.0)?)
+        Ok(fs::metadata(&self.1)?)
     }
 
     // The equivalent of lstat. Returns the metadata for this file,
     // even if it is a symlink
     pub fn symlink_metadata(&self) -> Result<Metadata, PathError> {
-        Ok(fs::symlink_metadata(&self.0)?)
+        Ok(fs::symlink_metadata(&self.1)?)
     }
 
     pub fn read_link(&self) -> Result<Utf8PathBuf, io::Error> {
-        self.0.read_link_utf8()
+        self.1.read_link_utf8()
     }
 
     pub fn remove_file(&self) -> Result<(), io::Error> {
-        fs::remove_file(&self.0)
+        fs::remove_file(&self.1)
     }
 
     pub fn remove_dir(&self) -> Result<(), io::Error> {
-        fs::remove_dir(&self.0)
+        fs::remove_dir(&self.1)
     }
 
     pub fn components(&self) -> Utf8Components<'_> {
-        self.0.components()
+        self.1.components()
     }
 
     pub fn collapse(&self) -> AbsoluteSystemPathBuf {
         let mut stack = vec![];
-        for segment in self.0.components() {
+        for segment in self.1.components() {
             match segment {
                 // skip over prefix/root dir
                 // we can ignore this
@@ -326,7 +338,7 @@ impl AbsoluteSystemPath {
             "expected absolute path to start with root/prefix"
         );
 
-        AbsoluteSystemPathBuf::new(stack.into_iter().collect::<Utf8PathBuf>())
+        AbsoluteSystemPathBuf::new(stack.into_iter().collect::<Utf8PathBuf>(), self.0.clone())
             .expect("collapsed path should be absolute")
     }
 
@@ -374,7 +386,7 @@ impl AbsoluteSystemPath {
     }
 
     pub fn parent(&self) -> Option<&AbsoluteSystemPath> {
-        self.0.parent().map(Self::new_unchecked)
+        self.1.parent().map(Self::new_unchecked)
     }
 
     /// Opens file and sets the `FILE_FLAG_SEQUENTIAL_SCAN` flag on Windows to
@@ -392,11 +404,11 @@ impl AbsoluteSystemPath {
             options.custom_flags(FILE_FLAG_SEQUENTIAL_SCAN);
         }
 
-        options.open(&self.0)
+        options.open(&self.1)
     }
 
     pub fn open_with_options(&self, open_options: OpenOptions) -> Result<File, io::Error> {
-        open_options.open(&self.0)
+        open_options.open(&self.1)
     }
 
     pub fn read(&self) -> Result<Vec<u8>, io::Error> {
@@ -404,7 +416,7 @@ impl AbsoluteSystemPath {
     }
 
     pub fn read_to_string(&self) -> Result<String, io::Error> {
-        fs::read_to_string(&self.0)
+        fs::read_to_string(&self.1)
     }
 
     /// Attempts to read a file, and:
@@ -417,7 +429,7 @@ impl AbsoluteSystemPath {
     where
         I: Into<String>,
     {
-        fs::read_to_string(&self.0).or_else(|e| {
+        fs::read_to_string(&self.1).or_else(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 default_value.map(|intoable| intoable.into())
             } else {
@@ -431,7 +443,7 @@ impl AbsoluteSystemPath {
         use std::os::unix::fs::PermissionsExt;
 
         let permissions = Permissions::from_mode(mode);
-        fs::set_permissions(&self.0, permissions)?;
+        fs::set_permissions(&self.1, permissions)?;
 
         Ok(())
     }
@@ -439,14 +451,14 @@ impl AbsoluteSystemPath {
 
 impl<'a> From<&'a AbsoluteSystemPath> for CandidatePath<'a> {
     fn from(value: &'a AbsoluteSystemPath) -> Self {
-        CandidatePath::from(value.0.as_std_path())
+        CandidatePath::from(value.1.as_std_path())
     }
 }
 
 impl PartialEq<AbsoluteSystemPath> for Path {
     fn eq(&self, other: &AbsoluteSystemPath) -> bool {
         Utf8Path::from_path(self)
-            .map(|path| &other.0 == path)
+            .map(|path| &other.1 == path)
             .unwrap_or(false)
     }
 }
@@ -460,7 +472,7 @@ impl PartialEq<AbsoluteSystemPath> for PathBuf {
 impl PartialEq<&AbsoluteSystemPath> for Path {
     fn eq(&self, other: &&AbsoluteSystemPath) -> bool {
         Utf8Path::from_path(self)
-            .map(|path| &other.0 == path)
+            .map(|path| &other.1 == path)
             .unwrap_or(false)
     }
 }
