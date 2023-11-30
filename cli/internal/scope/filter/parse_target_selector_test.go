@@ -3,6 +3,8 @@ package filter
 import (
 	"reflect"
 	"testing"
+
+	"github.com/vercel/turbo/cli/internal/turbopath"
 )
 
 func TestParseTargetSelector(t *testing.T) {
@@ -116,7 +118,7 @@ func TestParseTargetSelector(t *testing.T) {
 				includeDependencies: false,
 				includeDependents:   false,
 				namePattern:         "",
-				parentDir:           "foo/*",
+				parentDir:           turbopath.MakeRelativeSystemPath("foo/*"),
 			},
 			false,
 		},
@@ -129,7 +131,7 @@ func TestParseTargetSelector(t *testing.T) {
 				includeDependencies: false,
 				includeDependents:   false,
 				namePattern:         "",
-				parentDir:           "../foo",
+				parentDir:           turbopath.MakeRelativeSystemPath("../foo"),
 			},
 			false,
 		},
