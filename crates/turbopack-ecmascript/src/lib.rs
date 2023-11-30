@@ -68,7 +68,7 @@ use turbopack_core::{
 
 use self::{
     chunk::{EcmascriptChunkItemContent, EcmascriptChunkType, EcmascriptExports},
-    code_gen::{CodeGen, CodeGenerateableWithAsyncModuleInfo, VisitorFactory},
+    code_gen::{CodeGen, CodeGenerateableWithAsyncModuleInfo, CodeGenerateables, VisitorFactory},
     tree_shake::asset::EcmascriptModulePartAsset,
 };
 use crate::{
@@ -379,11 +379,14 @@ impl EcmascriptModuleAsset {
             .resolve()
             .await?;
 
+        let analyze = self.analyze().await?;
         Ok(EcmascriptModuleContent::new(
             parsed,
             self.ident(),
             chunking_context,
-            self.analyze(),
+            analyze.references,
+            analyze.code_generation,
+            analyze.exports,
             async_module_info,
         ))
     }
@@ -585,16 +588,11 @@ impl EcmascriptModuleContent {
         parsed: Vc<ParseResult>,
         ident: Vc<AssetIdent>,
         chunking_context: Vc<Box<dyn EcmascriptChunkingContext>>,
-        analyzed: Vc<AnalyzeEcmascriptModuleResult>,
+        references: Vc<ModuleReferences>,
+        code_generation: Vc<CodeGenerateables>,
+        exports: Vc<EcmascriptExports>,
         async_module_info: Option<Vc<AsyncModuleInfo>>,
     ) -> Result<Vc<Self>> {
-        let AnalyzeEcmascriptModuleResult {
-            references,
-            code_generation,
-            exports,
-            ..
-        } = &*analyzed.await?;
-
         let mut code_gens = Vec::new();
         for r in references.await?.iter() {
             let r = r.resolve().await?;
