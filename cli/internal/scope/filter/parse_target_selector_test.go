@@ -131,7 +131,7 @@ func TestParseTargetSelector(t *testing.T) {
 				includeDependencies: false,
 				includeDependents:   false,
 				namePattern:         "",
-				parentDir:           turbopath.MakeRelativeSystemPath("../foo"),
+				parentDir:           turbopath.MakeRelativeSystemPath("..", "foo"),
 			},
 			false,
 		},
